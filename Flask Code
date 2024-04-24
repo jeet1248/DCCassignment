@@ -1,0 +1,214 @@
+from flask import Flask, render_template, request
+from flask_mysqldb import MySQL
+
+app = Flask(__name__, template_folder='.')
+
+app.config['MYSQL_HOST'] = 'localhost'
+app.config['MYSQL_USER'] = 'new'
+app.config['MYSQL_PASSWORD'] = 'paSSWOrd@1'
+app.config['MYSQL_DB'] = 'dcc'
+
+mysql = MySQL(app)
+
+def get_data():
+    cursor=mysql.connection.cursor()
+    cursor.execute('select distinct name_of_purchaser from table02')
+    name_of_purchaser=cursor.fetchall()
+    cursor.close()
+    cursor=mysql.connection.cursor()
+    cursor.execute('select distinct name_of_the_political_party from table01')
+    name_of_party=cursor.fetchall()
+    cursor.close()
+    return name_of_purchaser,name_of_party
+
+@app.route('/', methods = ["POST", "GET"])
+def main_page():
+    name_of_purchaser,name_of_party=get_data()
+    return render_template("jetjsi.html",name_of_purchaser=name_of_purchaser,name_of_party=name_of_party)
+
+@app.route('/a_2', methods = ["POST", "GET"])
+def a_2():
+    name_of_purchaser,name_of_party=get_data()
+    if request.method == "POST":
+        cursor = mysql.connection.cursor()
+        if request.form['selector']=='bond_number':
+            cursor.execute("select * from table02 where bond_number = %s", (request.form["box"],))
+            data = cursor.fetchall()
+            print(data)
+            cursor.close()
+        else:
+            try:
+                value=request.form['filter_type']
+                try:
+                    cursor.execute(f'select * from table02 where {value} = %s',(request.form['box'],))
+                    data=cursor.fetchall()
+                except:
+                    pass
+            except:
+                pass
+    if len(data)==0:
+        return render_template('jetjsi.html',a_2_data = [['Not Found']])
+        
+    return render_template("jetjsi.html", a_2_data = data,name_of_purchaser=name_of_purchaser,name_of_party=name_of_party) 
+@app.route('/e_2',methods=['POST','GET'])
+
+
+def e_2():
+    if request.method == "POST":
+        cursor = mysql.connection.cursor()
+        value = request.form['Company']
+        cursor.execute("SELECT bond_number, Denominations, YEAR(STR_TO_DATE(date_of_purchase, '%%d/%%b/%%Y')) FROM table02 WHERE name_of_purchaser = %s", (value,))
+        data = cursor.fetchall()
+        d = {}
+        for row in data:
+            bond_number = row[0]
+            denominations = int(row[1].replace(',', ''))
+            year = row[2]
+            d[year] = d.get(year, 0) + denominations
+        cursor.close()
+
+        if len(data) == 0:
+            return render_template('jetjsi.html', e_2_data=[['Not Found']])
+        
+        years = list(d.keys())
+        amount = list(d.values())
+        print("Years:", years)  # Debugging
+        name_of_purchaser, name_of_party = get_data()
+        return render_template('jetjsi.html', e_2_data=data, years=years, amount=amount, name_of_purchaser=name_of_purchaser, name_of_party=name_of_party)
+
+    return redirect(url_for('main_page'))
+
+@app.route('/e_3', methods=['POST', 'GET'])
+def e_3():
+    if request.method == "POST":
+        cursor = mysql.connection.cursor()
+        value = request.form['party']
+        cursor.execute("SELECT bond_number, Denominations, YEAR(STR_TO_DATE(date_of_encashment, '%%d/%%b/%%Y')) FROM table01 WHERE name_of_the_political_party = %s", (value,))
+        data = cursor.fetchall()
+        d = {}
+        for row in data:
+            bond_number = row[0]
+            denominations = int(row[1].replace(',', ''))
+            year = row[2]
+            d[year] = d.get(year, 0) + denominations
+        cursor.close()
+
+        if len(data) == 0:
+            return render_template('jetjsi.html', e_3_data=[['Not Found']])
+
+        years = list(d.keys())
+        amount = list(d.values())
+        print("Years:", years)
+        name_of_purchaser, name_of_party = get_data()
+        return render_template('jetjsi.html', e_3_data=data, years1=years, amount1=amount, name_of_purchaser=name_of_purchaser, name_of_party=name_of_party)
+
+    return redirect(url_for('main_page'))
+
+
+
+@app.route('/e_4', methods=['POST', 'GET'])
+def e_4():
+    if request.method == "POST":
+        cursor = mysql.connection.cursor()
+        value = request.form['party']
+        cursor.execute("SELECT bond_number, name_of_purchaser, Denominations FROM table02 WHERE bond_number IN (SELECT bond_number FROM table01 WHERE name_of_the_political_party = %s)", (value,))
+        data = cursor.fetchall()
+        cursor.close()
+
+        if len(data) == 0:
+            return render_template('jetjsi.html', e_4_data=[['Not Found']])
+
+        d = {}
+        for row in data:
+            name_of_purchaser = row[1]
+            denominations = int(row[2].replace(',', ''))
+            d[name_of_purchaser] = d.get(name_of_purchaser, 0) + denominations
+
+        companies = list(d.keys())
+        total_amount = list(d.values())
+        name_of_purchaser, name_of_party = get_data()
+
+        return render_template('jetjsi.html', companies=companies, total_amount=total_amount, e_4_data=list(d.items()), name_of_purchaser=name_of_purchaser, name_of_party=name_of_party)
+
+    return redirect(url_for('main_page'))
+
+
+@app.route('/e_5', methods=['POST', 'GET'])
+def e_5():
+    if request.method == "POST":
+        cursor = mysql.connection.cursor()
+        value = request.form['company']
+        cursor.execute("SELECT name_of_the_political_party, Denominations FROM table01 WHERE bond_number IN (SELECT bond_number FROM table02 WHERE name_of_purchaser = %s)", (value,))
+        data = cursor.fetchall()
+        cursor.close()
+
+        if len(data) == 0:
+            return render_template('Untitled-2.html', e_5_data=[['Not Found']])
+
+        d = {}
+        for row in data:
+            name_of_party = row[0]
+            denominations = int(row[1].replace(',', ''))
+            d[name_of_party] = d.get(name_of_party, 0) + denominations
+
+        parties = list(d.keys())
+        total_amount = list(d.values())
+        name_of_purchaser, name_of_party = get_data()
+
+        return render_template('jetjsi.html', e_5_data=list(d.items()), parties=parties, total_amount=total_amount, name_of_purchaser=name_of_purchaser, name_of_party=name_of_party)
+
+    return redirect(url_for('main_page'))
+
+@app.route('/e_6', methods=['POST', 'GET'])
+# def e_6():
+#     if request.method == "POST":
+#         cursor = mysql.connection.cursor()
+#         value = request.form['party']
+#         cursor.execute("SELECT name_of_purchaser, Denominations, year FROM table02 WHERE name_of_purchaser = %s", (value,))
+#         data = cursor.fetchall()
+#         cursor.close()
+
+#         if len(data) == 0:
+#             return render_template('jetjsi.html', party_names=[], party_total_amount=[], name_of_party=[])
+
+#         d = {}
+#         for row in data:
+#             year = row[2]
+#             denominations = int(row[1].replace(',', ''))
+#             d[year] = d.get(year, 0) + denominations
+
+#         years = list(d.keys())
+#         total_amount = list(d.values())
+#         name_of_purchaser, name_of_party = get_data()
+        
+#         cursor = mysql.connection.cursor()
+#         cursor.execute("SELECT name_of_the_political_party, SUM(Denominations) FROM table01 GROUP BY name_of_the_political_party")
+#         party_data = cursor.fetchall()
+#         cursor.close()
+
+#         party_names = [party[0] for party in party_data]
+#         party_total_amount = [party[1] for party in party_data]
+
+#         return render_template('jetjsi.html', party_names=party_names, party_total_amount=party_total_amount, name_of_party=name_of_party)
+    
+def e_6():
+    if request.method == "POST":
+        print(request.form['Pie Chart'])
+        cursor = mysql.connection.cursor()
+        cursor.execute('select Denominations, name_of_p_party from d10')
+        data = cursor.fetchall()
+        d = {}
+        for i in range(len(data)):
+            # Remove commas from the string and then convert to integer
+            d[data[i][1]] = d.get(data[i][1], 0) + int(data[i][0].replace(',', ''))  
+        print(d)
+        party = list(d.keys())
+        total_donations = list(d.values())
+    return render_template('jetjsi.html', party=party, total_donations=total_donations)
+
+    # return redirect(url_for('main_page'))
+
+if __name__ == '__main__':
+   app.run(host="0.0.0.0", port="80", debug = True) 
+
+
